@@ -294,6 +294,10 @@ class SettingsView extends StatelessWidget {
       final googleSignIn = GoogleSignIn(
         serverClientId: '83543355758-nukgb8dnd4kc7i9n9ftvu91k4l287gtg.apps.googleusercontent.com',
       );
+      
+      // Force the Google Account picker to show by signing out of any cached session first
+      await googleSignIn.signOut();
+      
       final googleUser = await googleSignIn.signIn();
       
       if (googleUser != null) {
