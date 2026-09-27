@@ -175,6 +175,12 @@ class ExpensesViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears the current category filter.
+  void clearCategoryFilter() {
+    _categoryFilter = null;
+    notifyListeners();
+  }
+
   /// Sets or clears a specific date filter.
   void setDateFilter(DateTime? date) {
     _dateFilter = date;

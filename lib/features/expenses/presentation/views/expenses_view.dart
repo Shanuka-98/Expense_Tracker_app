@@ -198,6 +198,15 @@ class ExpensesView extends StatelessWidget {
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
+                            } else {
+                              viewModel.clearCategoryFilter();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Showing all categories'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
                             }
                           },
                         ),
