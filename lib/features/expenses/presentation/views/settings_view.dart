@@ -134,7 +134,7 @@ class SettingsView extends StatelessWidget {
 
           // Actions
           ElevatedButton.icon(
-            onPressed: () => _confirmSignOut(context),
+            onPressed: () => _confirmSignOut(context, isGuest),
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Log Out'),
             style: ElevatedButton.styleFrom(
@@ -238,12 +238,16 @@ class SettingsView extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmSignOut(BuildContext context) async {
+  Future<void> _confirmSignOut(BuildContext context, bool isGuest) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log Out?'),
-        content: const Text('Are you sure you want to log out?'),
+        title: Text(isGuest ? 'Delete Guest Account?' : 'Log Out?'),
+        content: Text(
+          isGuest
+              ? 'WARNING: You are using a temporary Guest account. If you log out without backing up to a Google account, ALL your expenses and data will be permanently lost.'
+              : 'Are you sure you want to log out?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -252,16 +256,36 @@ class SettingsView extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('Log Out'),
+            child: Text(isGuest ? 'Log Out & Delete Data' : 'Log Out'),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      if (context.mounted) Navigator.of(context).pop();
-      await GoogleSignIn().signOut();
-      await FirebaseAuth.instance.signOut();
+      // Show loading overlay
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        await GoogleSignIn().signOut();
+        
+        final user = FirebaseAuth.instance.currentUser;
+        if (isGuest && user != null) {
+          // Delete the anonymous user completely so it doesn't linger in Firebase Auth
+          await user.delete();
+        } else {
+          await FirebaseAuth.instance.signOut();
+        }
+      } finally {
+        if (context.mounted) {
+          // Pop all dialogs and SettingsView to return to the root route
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+      }
     }
   }
 
