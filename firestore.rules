@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Deny all access by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User expense subcollection.
+    // Path: users/{uid}/expenses/{expenseId}
+    match /users/{uid}/expenses/{expenseId} {
+
+      // Only the authenticated owner can read their own expenses.
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Create: owner only, with field validation.
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && isValidExpense(request.resource.data, true);
+
+      // Update: owner only, with field validation.
+      // Cannot change createdAt after initial write.
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && isValidExpense(request.resource.data, false)
+                    && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Delete: owner only.
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Validation helper
+  // ---------------------------------------------------------------------------
+
+  /// Validates the expense document fields.
+  /// [isCreate] distinguishes create vs update for timestamp handling.
+  function isValidExpense(data, isCreate) {
+    let allowedFields = ['title', 'amountInCents', 'category', 'date', 'note',
+                         'createdAt', 'updatedAt'];
+
+    let validCategories = ['food', 'transport', 'shopping', 'entertainment',
+                           'bills', 'health', 'education', 'other'];
+
+    // Only allowed field names (no extra fields).
+    return data.keys().hasOnly(allowedFields)
+
+      // Required fields exist.
+      && data.keys().hasAll(['title', 'amountInCents', 'category', 'date', 'updatedAt'])
+
+      // title: non-empty string, max 200 chars.
+      && data.title is string
+      && data.title.size() > 0
+      && data.title.size() <= 200
+
+      // amountInCents: positive integer, max 100,000,000 (= 1,000,000.00 in major units).
+      && data.amountInCents is int
+      && data.amountInCents > 0
+      && data.amountInCents <= 100000000
+
+      // category: one of the known enum values.
+      && data.category is string
+      && data.category in validCategories
+
+      // date: string matching YYYY-MM-DD pattern (basic length check).
+      && data.date is string
+      && data.date.size() == 10
+
+      // note: optional, but if present must be a string <= 500 chars.
+      && (!(data.keys().hasAny(['note'])) || data.note == null || (data.note is string && data.note.size() <= 500))
+
+      // updatedAt: must be a server timestamp.
+      && data.updatedAt == request.time
+
+      // createdAt: required on create and must be a server timestamp.
+      && (!isCreate || (data.keys().hasAll(['createdAt']) && data.createdAt == request.time));
+  }
+}
